@@ -212,7 +212,7 @@ def write_header(args):
     # flash page size
     args.output.write(pack('I', args.pagesize))
     # version of boot image header
-    args.output.write(pack('I', args.header_version))
+    args.output.write(pack('I', max(args.header_version, filesize(args.dt))))
     # os version and patch level
     args.output.write(pack('I', (args.os_version << 11) | args.os_patch_level))
     # asciiz product name
@@ -223,6 +223,7 @@ def write_header(args):
     update_sha(sha, args.kernel)
     update_sha(sha, args.ramdisk)
     update_sha(sha, args.second)
+    update_sha(sha, args.dt)
 
     if args.header_version > 0:
         update_sha(sha, args.recovery_dtbo)
@@ -533,6 +534,7 @@ def parse_cmdline():
                         help='print the image ID on standard output')
     parser.add_argument('--header_version', type=parse_int, default=0,
                         help='boot image header version')
+    parser.add_argument('--dt', help='path to the device tree image', type=FileType('rb'))
     parser.add_argument('-o', '--output', type=FileType('wb'),
                         help='output file name')
     parser.add_argument('--gki_signing_algorithm',
@@ -556,6 +558,8 @@ def parse_cmdline():
     if len(extra_args) > 0:
         raise ValueError(f'Unrecognized arguments: {extra_args}')
 
+    if args.header_version > 0 and args.dt != None:
+        raise ValueError('header_version and dt cannot be set at the same time')
     if args.header_version < 3:
         args.extra_cmdline = args.cmdline[BOOT_ARGS_SIZE-1:]
         args.cmdline = args.cmdline[:BOOT_ARGS_SIZE-1] + b'\x00'
@@ -625,6 +629,7 @@ def write_data(args, pagesize):
     write_padded_file(args.output, args.kernel, pagesize)
     write_padded_file(args.output, args.ramdisk, pagesize)
     write_padded_file(args.output, args.second, pagesize)
+    write_padded_file(args.output, args.dt, pagesize)
 
     if args.header_version > 0 and args.header_version < 3:
         write_padded_file(args.output, args.recovery_dtbo, pagesize)
